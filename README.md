@@ -7,6 +7,9 @@ with just an email address and password, no manual server/port entry.
 
 Single Go binary, single YAML config, single Docker image (~10-15MB).
 
+This project's initial implementation was AI-written under human direction —
+see [AI_USAGE.md](AI_USAGE.md) for what that means in practice.
+
 ## Endpoints
 
 | Client | Mechanism | Endpoint |

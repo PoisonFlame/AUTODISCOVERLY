@@ -2,3 +2,7 @@
 *.md
 docker-compose.yml
 config.example.yaml
+# Real config (if present in the build context) should never end up in a
+# build stage or layer cache -- it's meant to be bind-mounted at runtime.
+config.yaml
+*.local.yaml

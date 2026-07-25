@@ -41,9 +41,17 @@ func main() {
 	}
 
 	srv := &http.Server{
-		Addr:              cfg.Server.Listen,
-		Handler:           server.New(resolver),
+		Addr:    cfg.Server.Listen,
+		Handler: server.New(resolver),
+		// All requests this service handles are tiny (a few KB of XML/JSON
+		// at most); bounding header, body-read, and write time closes off a
+		// slow-loris-style DoS where a client opens a connection and
+		// trickles bytes to hold a goroutine open indefinitely. The 1MiB
+		// body cap in the handlers bounds size; these bound time.
 		ReadHeaderTimeout: 5 * time.Second,
+		ReadTimeout:       10 * time.Second,
+		WriteTimeout:      10 * time.Second,
+		IdleTimeout:       60 * time.Second,
 	}
 
 	shutdownComplete := make(chan struct{})
