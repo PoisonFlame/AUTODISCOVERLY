@@ -6,8 +6,14 @@
 # one container is enough — no per-domain routing rules needed here.
 services:
   autodiscoverly:
-    build: .
-    # image: ghcr.io/you/autodiscoverly:latest
+    # Published by .github/workflows/docker-publish.yml on every push to
+    # main (tag: latest) and on v*.*.* tags (tags: X.Y.Z, X.Y, X too) --
+    # pin to a specific version tag instead of `latest` for anything you
+    # care about not changing out from under you.
+    image: ghcr.io/poisonflame/autodiscoverly:latest
+    # Uncomment to build locally instead of pulling (e.g. testing an
+    # unpublished change):
+    # build: .
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"

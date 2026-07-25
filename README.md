@@ -95,9 +95,9 @@ docker run -d \
   autodiscoverly
 ```
 
-Or with `docker-compose.yml` (put your real config at `./config.yaml` first;
-swap `build: .` for `image: ghcr.io/poisonflame/autodiscoverly:latest` to use
-the published image instead of building locally):
+Or with `docker-compose.yml` (put your real config at `./config.yaml`
+first — it pulls the published image by default; uncomment `build: .` in
+there instead if you want to build locally):
 
 ```sh
 docker compose up -d
