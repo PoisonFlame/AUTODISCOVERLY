@@ -6,10 +6,11 @@ import (
 	"testing"
 )
 
-func TestV2JSON_KnownDomain(t *testing.T) {
+func TestV2JSON_AutodiscoverV1PointsBackAtPOX(t *testing.T) {
 	handler := NewAutodiscoverV2Handler(newTestResolver())
 
-	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@example.com&Protocol=IMAP", nil)
+	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@example.com&Protocol=AutodiscoverV1", nil)
+	req.Host = "autodiscover.example.com"
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
@@ -21,46 +22,48 @@ func TestV2JSON_KnownDomain(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("unmarshaling response: %v", err)
 	}
-	if resp.Server != "mail.mxrouting.net" || resp.Port != 993 || !resp.SSL {
-		t.Errorf("unexpected response: %+v", resp)
+	if resp.Protocol != "AutodiscoverV1" {
+		t.Errorf("Protocol = %q, want AutodiscoverV1", resp.Protocol)
 	}
-	if resp.Username != "user@example.com" {
-		t.Errorf("Username = %q, want full email", resp.Username)
+	want := "https://autodiscover.example.com/autodiscover/autodiscover.xml"
+	if resp.Url != want {
+		t.Errorf("Url = %q, want %q", resp.Url, want)
 	}
 }
 
-func TestV2JSON_DefaultsToIMAPProtocol(t *testing.T) {
+func TestV2JSON_ProtocolCaseInsensitive(t *testing.T) {
 	handler := NewAutodiscoverV2Handler(newTestResolver())
 
-	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@example.com", nil)
+	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@example.com&Protocol=autodiscoverv1", nil)
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
-	var resp v2Response
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("unmarshaling response: %v", err)
-	}
-	if resp.Protocol != "IMAP" {
-		t.Errorf("Protocol = %q, want IMAP default", resp.Protocol)
+	if rec.Code != 200 {
+		t.Fatalf("status = %d, want 200 regardless of Protocol casing", rec.Code)
 	}
 }
 
 func TestV2JSON_UnsupportedProtocol(t *testing.T) {
 	handler := NewAutodiscoverV2Handler(newTestResolver())
 
-	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@example.com&Protocol=ActiveSync", nil)
-	rec := httptest.NewRecorder()
-	handler(rec, req)
+	// Real Exchange-native protocol values that a genuine Outlook client
+	// might ask for -- we don't have EWS/ActiveSync/REST endpoints, so
+	// these should be rejected rather than answered with something wrong.
+	for _, protocol := range []string{"ActiveSync", "Ews", "Rest", ""} {
+		req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@example.com&Protocol="+protocol, nil)
+		rec := httptest.NewRecorder()
+		handler(rec, req)
 
-	if rec.Code != 404 {
-		t.Fatalf("status = %d, want 404 for unsupported protocol", rec.Code)
+		if rec.Code != 404 {
+			t.Errorf("Protocol=%q: status = %d, want 404", protocol, rec.Code)
+		}
 	}
 }
 
 func TestV2JSON_UnknownDomain(t *testing.T) {
 	handler := NewAutodiscoverV2Handler(newTestResolver())
 
-	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@unknown.test", nil)
+	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Email=user@unknown.test&Protocol=AutodiscoverV1", nil)
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 
@@ -72,7 +75,7 @@ func TestV2JSON_UnknownDomain(t *testing.T) {
 func TestV2JSON_MissingEmail(t *testing.T) {
 	handler := NewAutodiscoverV2Handler(newTestResolver())
 
-	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json", nil)
+	req := httptest.NewRequest("GET", "/autodiscover/autodiscover.json?Protocol=AutodiscoverV1", nil)
 	rec := httptest.NewRecorder()
 	handler(rec, req)
 

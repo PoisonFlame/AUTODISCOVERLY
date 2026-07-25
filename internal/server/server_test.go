@@ -55,7 +55,7 @@ func TestRoutes(t *testing.T) {
 	})
 
 	t.Run("autodiscover v2 json", func(t *testing.T) {
-		resp, err := http.Get(ts.URL + "/autodiscover/autodiscover.json?Email=user@example.com&Protocol=IMAP")
+		resp, err := http.Get(ts.URL + "/autodiscover/autodiscover.json?Email=user@example.com&Protocol=AutodiscoverV1")
 		if err != nil {
 			t.Fatal(err)
 		}

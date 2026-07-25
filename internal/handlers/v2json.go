@@ -8,20 +8,16 @@ import (
 	"autodiscoverly/internal/mailconfig"
 )
 
-// v2Response mirrors the shape returned for Protocol=IMAP/POP3/SMTP queries
-// against Autodiscover v2. Note: Microsoft's v2 JSON endpoint is primarily
-// documented for locating Exchange-native service endpoints (EWS/ActiveSync/
-// REST), not plain IMAP server settings, so this response shape is a
-// best-effort implementation modeled on the same fields POX exposes. Verify
-// against a real Outlook Mobile client before depending on it exclusively —
-// POX (handled by NewAutodiscoverXMLHandler) is the well-established
-// fallback either way.
+// v2Response mirrors Microsoft's real Autodiscover v2 shape: a pointer to a
+// single service endpoint URL for a requested "next-level protocol" (e.g.
+// ActiveSync, EWS, REST), not a bag of IMAP/SMTP server settings -- v2 has
+// no IMAP/SMTP protocol value at all (confirmed against Microsoft Learn/blog
+// documentation of the real request/response shape; see AI_USAGE.md). The
+// one case worth answering here is AutodiscoverV1, which points the client
+// back at our own verified POX endpoint.
 type v2Response struct {
 	Protocol string `json:"Protocol"`
-	Server   string `json:"Server,omitempty"`
-	Port     int    `json:"Port,omitempty"`
-	SSL      bool   `json:"SSL"`
-	Username string `json:"Username,omitempty"`
+	Url      string `json:"Url"`
 }
 
 type v2ErrorResponse struct {
@@ -29,19 +25,11 @@ type v2ErrorResponse struct {
 	Message   string `json:"Message"`
 }
 
-var v2SupportedProtocols = map[string]func(mailconfig.ResolvedDomain) mailconfig.ResolvedServer{
-	"IMAP": func(d mailconfig.ResolvedDomain) mailconfig.ResolvedServer { return d.IMAP },
-	"SMTP": func(d mailconfig.ResolvedDomain) mailconfig.ResolvedServer { return d.SMTP },
-}
-
 // NewAutodiscoverV2Handler serves GET /autodiscover/autodiscover.json.
 func NewAutodiscoverV2Handler(resolver *mailconfig.Resolver) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		email := r.URL.Query().Get("Email")
-		protocol := strings.ToUpper(r.URL.Query().Get("Protocol"))
-		if protocol == "" {
-			protocol = "IMAP"
-		}
+		protocol := r.URL.Query().Get("Protocol")
 
 		domain := domainFromEmail(email)
 		if domain == "" {
@@ -52,8 +40,7 @@ func NewAutodiscoverV2Handler(resolver *mailconfig.Resolver) http.HandlerFunc {
 			return
 		}
 
-		resolved, ok := resolver.Lookup(domain)
-		if !ok {
+		if _, ok := resolver.Lookup(domain); !ok {
 			writeJSON(w, http.StatusNotFound, v2ErrorResponse{
 				ErrorCode: "InvalidUser",
 				Message:   "Requested account could not be found",
@@ -61,22 +48,21 @@ func NewAutodiscoverV2Handler(resolver *mailconfig.Resolver) http.HandlerFunc {
 			return
 		}
 
-		serverFor, ok := v2SupportedProtocols[protocol]
-		if !ok {
+		if !strings.EqualFold(protocol, "AutodiscoverV1") {
 			writeJSON(w, http.StatusNotFound, v2ErrorResponse{
 				ErrorCode: "ProtocolNotSupported",
-				Message:   "This server only supports IMAP and SMTP autodiscovery",
+				Message:   "This server only resolves the AutodiscoverV1 (POX) endpoint via v2; it has no Exchange-native services to point to",
 			})
 			return
 		}
-		server := serverFor(resolved)
 
+		// r.Host reflects what the client connected to (a reverse proxy
+		// preserves the original Host header when forwarding); Autodiscover
+		// always runs over HTTPS from the client's perspective regardless
+		// of whether TLS terminates here or upstream.
 		writeJSON(w, http.StatusOK, v2Response{
-			Protocol: protocol,
-			Server:   server.Hostname,
-			Port:     server.Port,
-			SSL:      server.SSLEnabled(),
-			Username: server.Username(email),
+			Protocol: "AutodiscoverV1",
+			Url:      "https://" + r.Host + "/autodiscover/autodiscover.xml",
 		})
 	}
 }

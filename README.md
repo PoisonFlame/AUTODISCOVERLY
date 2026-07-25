@@ -16,7 +16,7 @@ see [AI_USAGE.md](AI_USAGE.md) for what that means in practice.
 |---|---|---|
 | Outlook (desktop & mobile) | POX Autodiscover | `POST /autodiscover/autodiscover.xml` |
 | Outlook (older/edge cases) | SOAP GetUserSettings | `POST /autodiscover/autodiscover.xml` (same URL, detected by request body) |
-| Outlook (newer) | Autodiscover v2 (JSON) | `GET /autodiscover/autodiscover.json?Email=...&Protocol=IMAP` |
+| Outlook (newer) | Autodiscover v2 (JSON) | `GET /autodiscover/autodiscover.json?Email=...&Protocol=AutodiscoverV1` |
 | Thunderbird / others | Mozilla Autoconfig | `GET /mail/config-v1.1.xml?emailaddress=...` and `GET /.well-known/autoconfig/mail/config-v1.1.xml` |
 | Orchestrator | Liveness | `GET /health` |
 
@@ -103,22 +103,30 @@ non-Microsoft domains. That's client-side behavior no self-hosted server can
 fully suppress — it's not a bug in this project, just a heads up if you go
 looking at your web server logs.
 
-## Verified vs. best-effort
+## Protocol fidelity
+
+All three Outlook mechanisms are implemented against Microsoft's published
+schemas, not guessed — see [AI_USAGE.md](AI_USAGE.md) for the exact sources
+and what was cross-checked:
 
 - **POX** (`/autodiscover/autodiscover.xml` with an `<Autodiscover>` body)
   is the well-established mechanism Outlook uses for plain IMAP/SMTP
-  accounts and is the one to rely on.
-- **Autodiscover v2 JSON** is included since modern Outlook Mobile prefers
-  it when available, but Microsoft's public docs focus on it for
-  Exchange-native endpoint discovery rather than plain IMAP — treat it as a
-  bonus path, with POX as the guaranteed fallback.
-- **SOAP GetUserSettings** is implemented for older/edge-case clients that
-  try it before POX; also best-effort against a schema that's mostly
-  documented for Exchange hybrid scenarios.
+  accounts and is the one to rely on above the other two.
+- **Autodiscover v2 JSON** does *not* have an IMAP/SMTP protocol value in
+  Microsoft's real implementation — it's a pointer service that resolves a
+  requested "next-level protocol" (ActiveSync/EWS/REST/etc.) to a single
+  service URL. This server only answers `Protocol=AutodiscoverV1`, pointing
+  the client back at its own POX endpoint; every other protocol value
+  correctly 404s, since we have no Exchange-native services to point to.
+- **SOAP GetUserSettings** returns `InternalImap4Connections` /
+  `ExternalImap4Connections` / `*SmtpConnections` as
+  `ProtocolConnectionCollectionSetting`-typed `UserSetting` entries (the
+  real `xsi:type` and element nesting Exchange servers use), not
+  the made-up flat field names an earlier draft used.
 
-If a real device disagrees with any of the above, the fix is almost always
-in `internal/handlers/*.go` — file an issue/PR with the client's actual
-request/response.
+If a real device still disagrees with any of the above, the fix is almost
+always in `internal/handlers/*.go` — file an issue/PR with the client's
+actual request/response.
 
 ## Development
 
@@ -131,7 +139,7 @@ go vet ./...
 No local Go toolchain? Run the same commands in a container:
 
 ```sh
-docker run --rm -v "$(pwd)":/src -w /src golang:1.23-alpine \
+docker run --rm -v "$(pwd)":/src -w /src golang:1.25-alpine \
   sh -c "go test ./... && gofmt -l . && go vet ./..."
 ```
 

@@ -4,25 +4,40 @@ import (
 	"bytes"
 	"encoding/xml"
 	"net/http"
-	"strconv"
 
 	"autodiscoverly/internal/mailconfig"
 )
 
-// SOAP support is best-effort: modern Outlook (including Outlook Mobile)
-// overwhelmingly uses POX or the v2 JSON endpoint to configure plain
-// IMAP/SMTP accounts, and only a minority of older clients try SOAP
-// GetUserSettings first. We respond on the same URL so those clients still
-// get usable settings instead of a hard failure.
+// SOAP is a secondary path: modern Outlook (including Outlook Mobile)
+// overwhelmingly uses POX to configure plain IMAP/SMTP accounts, and only a
+// minority of older clients try SOAP GetUserSettings first. We respond on
+// the same URL so those clients still get usable settings instead of a hard
+// failure. The wire format here (namespace, UserSetting xsi:type
+// discriminator, ProtocolConnection element names) is verified against
+// Microsoft's published GetUserSettings SOAP reference and the [MS-OXWSADISC]
+// full XML schema, not guessed -- see AI_USAGE.md for sources.
 
 const (
 	soapEnvelopeNS     = "http://schemas.xmlsoap.org/soap/envelope/"
 	soapAutodiscoverNS = "http://schemas.microsoft.com/exchange/2010/Autodiscover"
+	xsiNS              = "http://www.w3.org/2001/XMLSchema-instance"
 )
 
+type protocolConnection struct {
+	Hostname         string `xml:"Hostname"`
+	Port             int    `xml:"Port"`
+	EncryptionMethod string `xml:"EncryptionMethod"`
+}
+
+// soapUserSetting only models the one xsi:type this server ever emits
+// (ProtocolConnectionCollectionSetting, used for *Imap4Connections and
+// *SmtpConnections) -- the base schema also defines StringSetting and other
+// variants for settings we don't implement (mailbox server DN, EWS URLs,
+// etc.), which don't apply to a plain IMAP/SMTP provider.
 type soapUserSetting struct {
-	Name  string `xml:"Name"`
-	Value string `xml:"Value"`
+	XSIType             string               `xml:"i:type,attr"`
+	Name                string               `xml:"Name"`
+	ProtocolConnections []protocolConnection `xml:"ProtocolConnections>ProtocolConnection"`
 }
 
 type soapUserResponse struct {
@@ -34,6 +49,7 @@ type soapUserResponse struct {
 type soapResponse struct {
 	XMLName       xml.Name           `xml:"Response"`
 	Xmlns         string             `xml:"xmlns,attr"`
+	XmlnsI        string             `xml:"xmlns:i,attr"`
 	ErrorCode     string             `xml:"ErrorCode"`
 	ErrorMessage  string             `xml:"ErrorMessage"`
 	UserResponses []soapUserResponse `xml:"UserResponses>UserResponse"`
@@ -81,18 +97,10 @@ func handleSOAP(w http.ResponseWriter, body []byte, resolver *mailconfig.Resolve
 	}
 
 	settings := []soapUserSetting{
-		{Name: "InternalImapServer", Value: resolved.IMAP.Hostname},
-		{Name: "ExternalImapServer", Value: resolved.IMAP.Hostname},
-		{Name: "InternalImapPort", Value: strconv.Itoa(resolved.IMAP.Port)},
-		{Name: "ExternalImapPort", Value: strconv.Itoa(resolved.IMAP.Port)},
-		{Name: "InternalImapSSL", Value: boolStr(resolved.IMAP.SSLEnabled())},
-		{Name: "ExternalImapSSL", Value: boolStr(resolved.IMAP.SSLEnabled())},
-		{Name: "InternalSmtpServer", Value: resolved.SMTP.Hostname},
-		{Name: "ExternalSmtpServer", Value: resolved.SMTP.Hostname},
-		{Name: "InternalSmtpPort", Value: strconv.Itoa(resolved.SMTP.Port)},
-		{Name: "ExternalSmtpPort", Value: strconv.Itoa(resolved.SMTP.Port)},
-		{Name: "InternalSmtpSSL", Value: boolStr(resolved.SMTP.SSLEnabled())},
-		{Name: "ExternalSmtpSSL", Value: boolStr(resolved.SMTP.SSLEnabled())},
+		protocolConnectionSetting("InternalImap4Connections", resolved.IMAP),
+		protocolConnectionSetting("ExternalImap4Connections", resolved.IMAP),
+		protocolConnectionSetting("InternalSmtpConnections", resolved.SMTP),
+		protocolConnectionSetting("ExternalSmtpConnections", resolved.SMTP),
 	}
 
 	writeSOAPResponse(w, soapResponse{
@@ -105,7 +113,34 @@ func handleSOAP(w http.ResponseWriter, body []byte, resolver *mailconfig.Resolve
 	})
 }
 
+func protocolConnectionSetting(name string, server mailconfig.ResolvedServer) soapUserSetting {
+	return soapUserSetting{
+		XSIType: "ProtocolConnectionCollectionSetting",
+		Name:    name,
+		ProtocolConnections: []protocolConnection{{
+			Hostname:         server.Hostname,
+			Port:             server.Port,
+			EncryptionMethod: encryptionMethodString(server),
+		}},
+	}
+}
+
+// EncryptionMethod is documented as free-form text (no fixed enum), so
+// these values follow the same SSL/STARTTLS/none vocabulary the rest of the
+// config uses rather than a Microsoft-specified list.
+func encryptionMethodString(server mailconfig.ResolvedServer) string {
+	switch {
+	case server.SSLEnabled():
+		return "SSL"
+	case server.Encryption == "STARTTLS":
+		return "TLS"
+	default:
+		return "None"
+	}
+}
+
 func writeSOAPResponse(w http.ResponseWriter, resp soapResponse) {
+	resp.XmlnsI = xsiNS
 	envelope := soapEnvelope{
 		SoapNS: soapEnvelopeNS,
 		Body: soapBody{
@@ -139,11 +174,4 @@ func extractSOAPMailbox(body []byte) string {
 			}
 		}
 	}
-}
-
-func boolStr(b bool) string {
-	if b {
-		return "true"
-	}
-	return "false"
 }
