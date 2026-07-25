@@ -41,7 +41,7 @@ jobs:
       # (--platform=$BUILDPLATFORM + GOOS/GOARCH) rather than emulating with
       # QEMU, so adding arm64 here doesn't meaningfully slow the build down.
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           platforms: linux/amd64,linux/arm64
