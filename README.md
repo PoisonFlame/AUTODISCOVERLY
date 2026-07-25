@@ -1,5 +1,8 @@
 # AutoDiscoverly
 
+[![CI](https://github.com/PoisonFlame/AUTODISCOVERLY/actions/workflows/ci.yml/badge.svg)](https://github.com/PoisonFlame/AUTODISCOVERLY/actions/workflows/ci.yml)
+[![Publish Docker image](https://github.com/PoisonFlame/AUTODISCOVERLY/actions/workflows/docker-publish.yml/badge.svg)](https://github.com/PoisonFlame/AUTODISCOVERLY/actions/workflows/docker-publish.yml)
+
 A small, self-hosted Autodiscover/Autoconfig service for IMAP/SMTP mail providers
 (e.g. [MXroute](https://mxroute.com)). Point it at your domains and mail clients
 — Outlook (desktop and mobile), Thunderbird, K-9/Fair Email, etc. — can be set up
@@ -71,6 +74,19 @@ the `CONFIG_PATH` env var.
 
 ## Running it
 
+Pull the prebuilt image (published by CI on every push to `main` — see
+[CI/CD](#cicd) below) instead of building locally:
+
+```sh
+docker pull ghcr.io/poisonflame/autodiscoverly:latest
+docker run -d \
+  -p 127.0.0.1:8080:8080 \
+  -v "$(pwd)/config.yaml:/etc/autodiscoverly/config.yaml:ro" \
+  ghcr.io/poisonflame/autodiscoverly:latest
+```
+
+Or build it yourself:
+
 ```sh
 docker build -t autodiscoverly .
 docker run -d \
@@ -79,13 +95,39 @@ docker run -d \
   autodiscoverly
 ```
 
-Or with `docker-compose.yml` (put your real config at `./config.yaml` first):
+Or with `docker-compose.yml` (put your real config at `./config.yaml` first;
+swap `build: .` for `image: ghcr.io/poisonflame/autodiscoverly:latest` to use
+the published image instead of building locally):
 
 ```sh
 docker compose up -d
 ```
 
 Put your existing reverse proxy (Traefik/Caddy/nginx) in front of it for TLS.
+
+## CI/CD
+
+Two workflows in `.github/workflows/`:
+
+- **`ci.yml`** — runs on every pull request (and push to `main`): `gofmt`
+  check, `go vet`, `go build`, `go test`, a `govulncheck` scan, and a
+  single-arch Docker build to catch a broken `Dockerfile` before merge. All
+  of it must pass before a PR can land.
+- **`docker-publish.yml`** — runs on push to `main` and on `v*.*.*` tags
+  (plus manual dispatch): builds and pushes a multi-arch
+  (`linux/amd64`+`linux/arm64`) image to `ghcr.io/poisonflame/autodiscoverly`,
+  tagged `latest` on every build plus `X.Y.Z`/`X.Y`/`X` on version tags. The
+  Dockerfile cross-compiles the Go binary natively per target architecture
+  (no QEMU), so multi-arch doesn't meaningfully slow the build down.
+
+Both use the repo's automatic `GITHUB_TOKEN` — no secrets to configure. One
+one-time repo setting matters, though: **Settings → Actions → General →
+Workflow permissions** must allow "Read and write permissions", or the
+`docker-publish` push to `ghcr.io` will fail with a permissions error. After
+the first successful publish, also check the package's visibility under the
+repo's **Packages** tab — GHCR sometimes creates newly published packages as
+private even for a public repo, which would make `docker pull` fail for
+anyone else.
 
 ## DNS records you need, per domain
 

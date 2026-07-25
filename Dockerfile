@@ -1,11 +1,16 @@
-FROM golang:1.25-alpine AS build
+# Build stage runs natively on the build machine's architecture
+# (--platform=$BUILDPLATFORM) and cross-compiles for the requested target via
+# GOOS/GOARCH, so multi-arch builds don't pay for QEMU emulation.
+FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
+ARG TARGETOS
+ARG TARGETARCH
 WORKDIR /src
 
 COPY go.mod go.sum ./
 RUN go mod download
 
 COPY . .
-RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /autodiscoverly ./cmd/autodiscoverly
+RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -ldflags="-s -w" -o /autodiscoverly ./cmd/autodiscoverly
 
 FROM gcr.io/distroless/static-debian12:nonroot
 COPY --from=build /autodiscoverly /autodiscoverly
