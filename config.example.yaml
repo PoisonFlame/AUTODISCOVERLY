@@ -1,0 +1,37 @@
+# Copy this file, fill in your real hostnames, and mount it into the
+# container at the path pointed to by CONFIG_PATH (default
+# /etc/autodiscoverly/config.yaml).
+
+server:
+  listen: ":8080"
+
+# Settings every domain inherits unless it overrides a field below.
+# Most MXroute customers can leave this as the only place server settings
+# are defined.
+defaults:
+  imap:
+    hostname: mail.mxrouting.net
+    port: 993
+    encryption: SSL   # SSL | STARTTLS | none
+    username_format: email   # email | local-part
+  smtp:
+    hostname: mail.mxrouting.net
+    port: 465
+    encryption: SSL
+    username_format: email
+
+# Every domain that should get autodiscover/autoconfig responses. An empty
+# {} means "use defaults as-is". Any of imap/smtp/display_name may be
+# overridden per domain; unset fields fall back to defaults above.
+domains:
+  example.com:
+    display_name: "Example Mail"
+
+  another-example.org:
+    display_name: "Another Example"
+    imap:
+      port: 143
+      encryption: STARTTLS
+    smtp:
+      port: 587
+      encryption: STARTTLS

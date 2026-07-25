@@ -1,0 +1,16 @@
+# Example deployment behind an existing reverse proxy (Traefik/Caddy/nginx)
+# that terminates TLS and forwards plain HTTP to this container. Because
+# every handler resolves the target domain from the email address in the
+# request itself (not from the Host header), a single catch-all vhost
+# pointing every autodiscover.<domain>/autoconfig.<domain> hostname at this
+# one container is enough — no per-domain routing rules needed here.
+services:
+  autodiscoverly:
+    build: .
+    # image: ghcr.io/you/autodiscoverly:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - ./config.yaml:/etc/autodiscoverly/config.yaml:ro
+    # HEALTHCHECK is already baked into the image (see Dockerfile).
