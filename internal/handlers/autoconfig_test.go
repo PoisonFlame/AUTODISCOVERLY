@@ -101,3 +101,36 @@ func TestAutoconfig_STARTTLSSocketType(t *testing.T) {
 		t.Errorf("IncomingServer.SocketType = %q, want STARTTLS", cfg.Provider.IncomingServer.SocketType)
 	}
 }
+
+func TestAutoconfig_DisplayNameDerivedWhenUnconfigured(t *testing.T) {
+	handler := NewAutoconfigHandler(newTestResolver())
+
+	req := httptest.NewRequest("GET", "/mail/config-v1.1.xml?emailaddress=jane.doe@noname.example", nil)
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	var cfg autoconfigClientConfig
+	if err := xml.Unmarshal(rec.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("unmarshaling response: %v", err)
+	}
+	if cfg.Provider.DisplayName != "Jane Doe" {
+		t.Errorf("Provider.DisplayName = %q, want derived \"Jane Doe\"", cfg.Provider.DisplayName)
+	}
+}
+
+func TestAutoconfig_DisplayNamePlaceholderWhenNoEmailGiven(t *testing.T) {
+	handler := NewAutoconfigHandler(newTestResolver())
+
+	req := httptest.NewRequest("GET", "/mail/config-v1.1.xml", nil)
+	req.Host = "autoconfig.noname.example"
+	rec := httptest.NewRecorder()
+	handler(rec, req)
+
+	var cfg autoconfigClientConfig
+	if err := xml.Unmarshal(rec.Body.Bytes(), &cfg); err != nil {
+		t.Fatalf("unmarshaling response: %v", err)
+	}
+	if cfg.Provider.DisplayName != "" {
+		t.Errorf("Provider.DisplayName = %q, want empty when no email address was given", cfg.Provider.DisplayName)
+	}
+}

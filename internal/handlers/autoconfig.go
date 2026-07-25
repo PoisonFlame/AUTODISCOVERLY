@@ -50,8 +50,13 @@ func NewAutoconfigHandler(resolver *mailconfig.Resolver) http.HandlerFunc {
 		}
 
 		email := r.URL.Query().Get("emailaddress")
+		displayName := resolved.DisplayName
 		if email == "" {
 			email = "%EMAILADDRESS%"
+		} else if displayName == "" {
+			// Only derive from the local part when we have a real address;
+			// deriving from the %EMAILADDRESS% placeholder would be garbage.
+			displayName = deriveDisplayName(email)
 		}
 
 		cfg := autoconfigClientConfig{
@@ -59,7 +64,7 @@ func NewAutoconfigHandler(resolver *mailconfig.Resolver) http.HandlerFunc {
 			Provider: autoconfigProvider{
 				ID:          resolved.Domain,
 				Domain:      resolved.Domain,
-				DisplayName: resolved.DisplayName,
+				DisplayName: displayName,
 				IncomingServer: autoconfigServer{
 					Type:           "imap",
 					Hostname:       resolved.IMAP.Hostname,

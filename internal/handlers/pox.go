@@ -128,7 +128,7 @@ func handlePOX(w http.ResponseWriter, body []byte, resolver *mailconfig.Resolver
 		Xmlns: poxResponseSchemaNS,
 		Response: poxResponseBody{
 			Xmlns:   poxOutlookSchemaNS,
-			User:    &poxUser{DisplayName: resolved.DisplayName},
+			User:    &poxUser{DisplayName: displayNameFor(resolved, email)},
 			Account: &account,
 		},
 	}

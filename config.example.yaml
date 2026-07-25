@@ -23,12 +23,17 @@ defaults:
 # Every domain that should get autodiscover/autoconfig responses. An empty
 # {} means "use defaults as-is". Any of imap/smtp/display_name may be
 # overridden per domain; unset fields fall back to defaults above.
+#
+# display_name is optional. Leave it unset (as with example.com below) and
+# each mailbox gets its own name auto-derived from the email address, e.g.
+# "jane.doe@example.com" -> "Jane Doe" -- no per-user config needed. Set it
+# explicitly (as with another-example.org) only if you want every mailbox on
+# that domain to show the same branded label instead.
 domains:
-  example.com:
-    display_name: "Example Mail"
+  example.com: {}
 
   another-example.org:
-    display_name: "Another Example"
+    display_name: "Another Example Support"
     imap:
       port: 143
       encryption: STARTTLS

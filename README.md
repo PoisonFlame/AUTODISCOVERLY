@@ -44,10 +44,9 @@ defaults:
     username_format: email
 
 domains:
-  example.com:
-    display_name: "Example Mail"
+  example.com: {}
   another-example.org:
-    display_name: "Another Example"
+    display_name: "Another Example Support"
     imap:
       port: 143
       encryption: STARTTLS   # per-field override, hostname still inherited from defaults
@@ -55,6 +54,14 @@ domains:
 
 Any `imap`/`smtp` field left unset on a domain falls back to `defaults`. A
 domain with no overrides at all can just be `example.com: {}`.
+
+`display_name` is optional. Leave it unset and each mailbox gets its own
+name auto-derived from the email address at request time (e.g.
+`jane.doe@example.com` → "Jane Doe") — there's no server-side source of a
+mailbox's real name to query, so this is a best-effort heuristic, not a
+lookup. Set `display_name` explicitly only if you want every mailbox on a
+domain to show the same branded label instead (e.g. a shared support
+inbox).
 
 The config path defaults to `/etc/autodiscoverly/config.yaml`, override with
 the `CONFIG_PATH` env var.

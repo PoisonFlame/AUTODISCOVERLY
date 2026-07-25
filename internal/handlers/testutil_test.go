@@ -24,6 +24,7 @@ func newTestResolver() *mailconfig.Resolver {
 		},
 		Domains: map[string]config.DomainOverride{
 			"example.com": {DisplayName: "Example Mail"},
+			"noname.example": {},
 			"starttls.example": {
 				DisplayName: "STARTTLS Example",
 				IMAP: &config.ServerSettings{

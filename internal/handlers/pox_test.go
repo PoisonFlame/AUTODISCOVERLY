@@ -117,3 +117,15 @@ func TestPOX_STARTTLSDomain(t *testing.T) {
 		}
 	}
 }
+
+func TestPOX_DisplayNameDerivedWhenUnconfigured(t *testing.T) {
+	body := strings.Replace(poxOutlookRequest, "user@example.com", "jane.doe@noname.example", 1)
+	env := doPOXRequest(t, body)
+
+	if env.Response.Error != nil {
+		t.Fatalf("unexpected error: %+v", env.Response.Error)
+	}
+	if env.Response.User == nil || env.Response.User.DisplayName != "Jane Doe" {
+		t.Errorf("User.DisplayName = %+v, want derived \"Jane Doe\"", env.Response.User)
+	}
+}
