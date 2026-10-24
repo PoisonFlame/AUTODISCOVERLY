@@ -1,7 +1,7 @@
 # Build stage runs natively on the build machine's architecture
 # (--platform=$BUILDPLATFORM) and cross-compiles for the requested target via
 # GOOS/GOARCH, so multi-arch builds don't pay for QEMU emulation.
-FROM --platform=$BUILDPLATFORM golang:1.25-alpine AS build
+FROM --platform=$BUILDPLATFORM golang:1.26-alpine AS build
 ARG TARGETOS
 ARG TARGETARCH
 WORKDIR /src
